@@ -4,7 +4,7 @@ import warnings
 import time
 
 warnings.filterwarnings(action='ignore')
-class ButtonFrame(wx.Frame):
+class sensor_ButtonFrame(wx.Frame):
     def __init__(self):
         wx.Frame.__init__(self, None, -1, 'Button Example',
                           size=(300, 100))
@@ -25,7 +25,7 @@ class ButtonFrame(wx.Frame):
 
 if __name__ == '__main__':
     app = wx.PySimpleApp()
-    frame = ButtonFrame()
+    frame = sensor_ButtonFrame()
     # next_frame = ButtonFrame()
     frame.Show()
 
