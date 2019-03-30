@@ -39,7 +39,7 @@ def data_deal(dir):
 
                     pass
                 else:
-                    dict_device_motion[event_device] = "M"
+                    dict_device_motion[event_device] = wx.NewId()
 
                     pass
             elif event_device[0] == 'T':
@@ -47,7 +47,7 @@ def data_deal(dir):
 
                     pass
                 else:
-                    dict_device_temperate[event_device] = 'T'
+                    dict_device_temperate[event_device] = wx.NewId()
             print(event_time, event_device, event_state)
 
 
@@ -69,8 +69,25 @@ ID_BUTTON = wx.NewId()
 list_button_lists = [wx.NewId() for keys in dict_device_motion]
 
 # Define notification event for thread completion
+list_button_motion_lists = []
+list_button_motion_states = []
+for keys in dict_device_motion:
+    list_button_motion_lists.append(dict_device_motion[keys])
+    list_button_motion_states.append(wx.NewId())
+# list_button_motion_lists = [wx.NewId() for keys in dict_device_motion]
+# list_button_motion_states = [wx.NewId() for keys in dict_device_motion]
+
+dict_motions_pairs = {}
+for i in range (len(list_button_motion_lists)):
+    dict_motions_pairs[list_button_motion_lists[i]] = list_button_motion_states[i]
+
+print(dict_device_motion)
+print(dict_motions_pairs)
+
+# list_button_temp_lists = [wx.NewId() for keys in dict_device_temperate]
 EVT_RESULT_ID = wx.NewId()
 EVT_STATE_ID = wx.NewId()
+
 
 def get_state(num):
 
@@ -90,6 +107,11 @@ def EVT_STATE(win, func):
     win.Connect(-1, -1, EVT_STATE_ID, func)
 
 
+def EVT_MOTION_STATE(win, func, motionID):
+    """Define Motion State Event."""
+    win.Connect(-1, -1, dict_motions_pairs[motionID], func)
+
+
 class ResultEvent(wx.PyEvent):
     """Simple event to carry arbitrary result data."""
     def __init__(self, data):
@@ -105,6 +127,15 @@ class StateEvent(wx.PyEvent):
         """Init Result Event."""
         wx.PyEvent.__init__(self)
         self.SetEventType(EVT_STATE_ID)
+        self.data = data
+
+
+class MotionStateEvent(wx.PyEvent):
+    """Simple event to carry state  data of a Motion button."""
+    def __init__(self, Motion_ID, data):
+        """Init Result Event."""
+        wx.PyEvent.__init__(self)
+        self.SetEventType(dict_motions_pairs[Motion_ID])
         self.data = data
 
 
@@ -159,6 +190,24 @@ class WorkerThread(Thread):
         # example fixed result of the number 10, but it could be
         # any Python object)
         wx.PostEvent(self._notify_window, ResultEvent(10))
+        with open(all_data_dirs[2], 'r+') as f:
+
+            for line in f:
+                line = line.strip()
+                list_state = line.split('\t')
+                if len(list_state) < 3:
+                    continue
+                event_time = list_state[0]
+                event_device = list_state[1]
+                event_state = list_state[2]
+                if event_device[0] == 'M':
+                    time.sleep(0.2)
+                    print("%s %s\n" % (event_device, event_state))
+                    wx.PostEvent(self._notify_window, MotionStateEvent(dict_device_motion[event_device], (event_device,
+                                                                                                          event_state) ))
+                else:
+                    continue
+
 
     def abort(self):
         """abort worker thread."""
@@ -172,26 +221,37 @@ class MainFrame(wx.Frame):
     def __init__(self, parent, id):
         """Create the MainFrame."""
         wx.Frame.__init__(self, parent, id, 'Thread Test')
-
+        self.states = []
         # Dumb sample frame with two buttons
         i = 0
+        self.dict_motions_index = {}
         for keys in dict_device_motion:
-            wx.Button(self, list_button_lists[i], str(keys), pos=(100*i, 0))
+            wx.Button(self, list_button_motion_lists[i], str(keys), pos=(100*(i%12), int(i/12) *100))
+            self.states.append( wx.Button(self, list_button_motion_states[i], 'START',
+                                    pos=(100 * (i % 12), 50+int(i / 12) * 100)) )
+            self.dict_motions_index[keys] = i
+            # wx.Button(self, list_button_motion_states[i], 'START', pos=(100 * (i % 12), 50+int(i / 12) * 100))
+            # dict_motions_pairs[list_button_motion_lists[i]] = list_button_motion_states[i]
             i = i + 1
 
-        wx.Button(self, ID_START, 'Start', pos=(0, 0))
-        wx.Button(self, ID_STOP, 'Stop', pos=(0, 50))
-        wx.Button(self, ID_BUTTON, 'Initial', pos=(0, 100))
-        self.status = wx.StaticText(self, -1, '', pos=(0, 200))
+        wx.Button(self, ID_START, 'Start', pos=(0, 350))
+        wx.Button(self, ID_STOP, 'Stop', pos=(0, 400))
+        wx.Button(self, ID_BUTTON, 'Initial', pos=(0, 500))
+        self.status = wx.StaticText(self, -1, '', pos=(0, 600))
 
         self.Bind(wx.EVT_BUTTON, self.OnStart, id=ID_START)
-        self.Bind(wx.EVT_BUTTON, self.OnStop, id=ID_STOP)
+        self.Bind(wx.EVT_BUTTON, self.OnStop,  id=ID_STOP)
         self.Bind(wx.EVT_BUTTON, self.OnState, id=ID_BUTTON)
+
+        for motions in dict_motions_pairs:
+            self.Bind(wx.EVT_BUTTON, self.OnMotion, id=dict_motions_pairs[motions])
+            EVT_MOTION_STATE(self, self.OnMotion, motions)
+            # dict_motions_pairs[motions](self, self.OnState)
 
         # Set up event handler for any worker thread results
         EVT_RESULT(self, self.OnResult)
-
         EVT_STATE(self, self.OnState)
+        # EVT_MOTION_STATE(self, self.OnMotion(data=, botton_id=None), motions)
 
         # And indicate we don't have a worker thread yet
         self.worker = None
@@ -230,6 +290,12 @@ class MainFrame(wx.Frame):
             # Process results here
             self.status.SetLabel('OFF')
         # In either event, the worker is done
+        self.worker = None
+
+    def OnMotion(self, event):
+
+        # dict_motions_pairs[botton_id]
+        self.states[self.dict_motions_index[event.data[0]]].SetLabel(event.data[1])
         self.worker = None
 
 
