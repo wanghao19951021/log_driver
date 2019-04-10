@@ -4,6 +4,30 @@ from threading import *
 import wx
 import os
 
+
+def get_all_data_dirs(data_dir_root):
+
+    list_files_dir = []
+    for dirpath, dirnames, filenames in os.walk(data_dir_root):
+        for filepath in filenames:
+            list_files_dir.append(os.path.join(dirpath, filepath))
+
+    return list_files_dir
+
+
+def get_state(num):
+
+    if num % 2 == 0:
+        return "ON"
+    else:
+        return "OFF"
+
+
+data_dir_root = '/home/wang/下载/wsuk1/newData'
+all_data_dirs = get_all_data_dirs(data_dir_root)
+print(len(all_data_dirs))
+
+
 dict_device_motion = {}
 dict_device_temperate = {}
 
@@ -42,8 +66,6 @@ dict_device = \
     }
 
 
-
-
 list_button_lists = [wx.NewId() for keys in dict_device]
 
 
@@ -55,6 +77,17 @@ for keys in dict_device:
     list_button_motion_lists.append(dict_device_motion[keys])
     list_button_motion_states.append(wx.NewId())
 
+
+dict_motions_pairs = {}
+for i in range (len(list_button_motion_lists)):
+    dict_motions_pairs[list_button_motion_lists[i]] = list_button_motion_states[i]
+
+print(dict_device_motion)
+print(dict_motions_pairs)
+
+# list_button_temp_lists = [wx.NewId() for keys in dict_device_temperate]
+EVT_RESULT_ID = wx.NewId()
+EVT_STATE_ID = wx.NewId()
 
 
 def EVT_RESULT(win, func):
@@ -118,12 +151,77 @@ class ButtonFrame(wx.Frame):
         self.button.SetLabel(value)
 
 
+# Thread class that executes processing
+class WorkerThread(Thread):
+    """Worker Thread Class."""
+    def __init__(self, notify_window):
+        """Init Worker Thread Class."""
+        Thread.__init__(self)
+        self._notify_window = notify_window
+        self._want_abort = 0
+        # This starts the thread running on creation, but you could
+        # also make the GUI thread responsible for calling this
+        self.start()
+
+    def run(self):
+        """Run Worker Thread."""
+        # This is the code executing in the new thread. Simulation of
+        # a long process (well, 10s here) as a simple loop - you will
+        # need to structure your processing so that you periodically
+        # peek at the abort variable
+        for i in range(10):
+            time.sleep(0.11)
+            wx.PostEvent(self._notify_window, StateEvent(get_state(i)))
+
+            if self._want_abort:
+                # Use a result of None to acknowledge the abort (of
+                # course you can use whatever you'd like or even
+                # a separate event type)
+                wx.PostEvent(self._notify_window, ResultEvent(None))
+                return
+        # Here's where the result would be returned (this is an
+        # example fixed result of the number 10, but it could be
+        # any Python object)
+        wx.PostEvent(self._notify_window, ResultEvent(10))
+        with open(all_data_dirs[2], 'r') as f:
+            start_time = 0
+            for line in f:
+                line = line.strip()
+                list_state = line.split('\t')
+                if len(list_state) < 3:
+                    continue
+                event_time = list_state[0]
+                event_device = list_state[1]
+                event_state = list_state[2]
+                if event_device in dict_device_motion:
+                    if not start_time:
+                        pass
+                    else:
+                        time.sleep(time.mktime(time.strptime(event_time[:-7],
+                                                    "%Y-%m-%d %H:%M:%S")) + float(event_time[-7:]) - start_time)
+                    print(time.mktime(time.strptime(event_time[:-7],
+                                                    "%Y-%m-%d %H:%M:%S")) + float(event_time[-7:]))
+                    start_time = time.mktime(time.strptime(event_time[:-7],
+                                                    "%Y-%m-%d %H:%M:%S")) + float(event_time[-7:])
+                    print("%s %s %s\n" % (event_time, event_device, event_state))
+                    wx.PostEvent(self._notify_window, MotionStateEvent(dict_device_motion[event_device],
+                                                                       (event_device, event_state)))
+                else:
+                    pass
+
+
+    def abort(self):
+        """abort worker thread."""
+        # Method for use by main thread to signal an abort
+        self._want_abort = 1
+
+
 # GUI Frame class that spins off the worker thread
 class MainFrame(wx.Frame):
     """Class MainFrame."""
     def __init__(self, parent, id):
         """Create the MainFrame."""
-        wx.Frame.__init__(self, parent, id, 'Thread Test')
+        wx.Frame.__init__(self, parent, id, 'Final Thread Test')
         self.states = []
         # Dumb sample frame with two buttons
         i = 0
@@ -142,9 +240,25 @@ class MainFrame(wx.Frame):
         wx.Button(self, ID_START, 'Start', pos=(0, 300))
         wx.Button(self, ID_STOP, 'Stop', pos=(0, 400))
         wx.Button(self, ID_BUTTON, 'Initial', pos=(0, 500))
+        self.status = wx.StaticText(self, -1, '', pos=(0, 600))
 
+        self.Bind(wx.EVT_BUTTON, self.OnStart, id=ID_START)
+        self.Bind(wx.EVT_BUTTON, self.OnStop, id=ID_STOP)
+        self.Bind(wx.EVT_BUTTON, self.OnState, id=ID_BUTTON)
+
+        for motions in dict_motions_pairs:
+            self.Bind(wx.EVT_BUTTON, self.OnMotion, id=dict_motions_pairs[motions])
+            EVT_MOTION_STATE(self, self.OnMotion, motions)
+            # dict_motions_pairs[motions](self, self.OnState)
+
+        # Set up event handler for any worker thread results
+        EVT_RESULT(self, self.OnResult)
+        EVT_STATE(self, self.OnState)
+
+        self.worker = None
 
     def OnStart(self, event):
+
         """Start Computation."""
         # Trigger the worker thread unless it's already busy
         if not self.worker:
