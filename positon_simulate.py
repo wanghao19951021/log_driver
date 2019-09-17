@@ -3,7 +3,13 @@ import time
 from threading import *
 import wx
 import os
-
+import socket
+'''
+host = '192.168.0.39'
+port = 12345
+sk = socket.socket()
+sk.connect((host, port))
+'''
 
 def get_all_data_dirs(data_dir_root):
 
@@ -62,7 +68,8 @@ dict_device = \
         "D002": (2220, 20), "L010": (2260, 1220), "M051": (2290, 1770), "M015": (2300, 930), "M016": (2300, 1010),
         "M017": (2300, 1270), "T002": (2300, 1320), "M018": (2300, 1530), "M012": (2370, 160), "M013": (2370, 430),
         "M014": (2370, 670), "D011": (2450, 1760), "I007": (2490, 130), "D016": (2510, 1050), "D017": (2510, 1300),
-        "D014": (2550, 1440), "D015": (2550, 1540)
+        "D014": (2550, 1440), "D015": (2550, 1540),
+        "L008": (1950, 2.8)
     }
 
 
@@ -77,6 +84,7 @@ for keys in dict_device:
     list_button_motion_lists.append(dict_device_motion[keys])
     list_button_motion_states.append(wx.NewId())
 
+dict_device_motion_inverse = dict([val,key] for key,val in dict_device_motion.items())
 
 dict_motions_pairs = {}
 for i in range (len(list_button_motion_lists)):
@@ -151,6 +159,25 @@ class ButtonFrame(wx.Frame):
         self.button.SetLabel(value)
 
 
+class ToggleButtonFrame(wx.Frame):
+
+    def __init__(self, data):
+        wx.Frame.__init__(self, data)
+        self.ToggleButton.SetLabel(data)
+        self.Bind(wx.EVT_BUTTON, self.OnClick, self.ToggleButton)
+
+    def OnClick(self, event):
+
+        if self.ToggleButton.GetValue() == "ON":
+            self.ToggleButton.SetValue("OFF")
+        else:
+            self.ToggleButton.SetValue("ON")
+
+    def autoClick(self, value):
+
+        self.ToggleButton.SetValue(value)
+
+
 # Thread class that executes processing
 class WorkerThread(Thread):
     """Worker Thread Class."""
@@ -183,7 +210,7 @@ class WorkerThread(Thread):
         # example fixed result of the number 10, but it could be
         # any Python object)
         wx.PostEvent(self._notify_window, ResultEvent(10))
-        with open(all_data_dirs[2], 'r') as f:
+        with open("/home/wang/下载/wsuk1/newData/final_input", 'r') as f:
             start_time = 0
             for line in f:
                 line = line.strip()
@@ -203,12 +230,17 @@ class WorkerThread(Thread):
                                                     "%Y-%m-%d %H:%M:%S")) + float(event_time[-7:]))
                     start_time = time.mktime(time.strptime(event_time[:-7],
                                                     "%Y-%m-%d %H:%M:%S")) + float(event_time[-7:])
+
+                    data = event_time + ' ' + event_device + ' ' + event_state + '\n'
+
+                    # sk.send(bytes(data))
                     print("%s %s %s\n" % (event_time, event_device, event_state))
                     wx.PostEvent(self._notify_window, MotionStateEvent(dict_device_motion[event_device],
                                                                        (event_device, event_state)))
                 else:
                     pass
 
+        sk.close()
 
     def abort(self):
         """abort worker thread."""
@@ -223,6 +255,7 @@ class MainFrame(wx.Frame):
         """Create the MainFrame."""
         wx.Frame.__init__(self, parent, id, 'Final Thread Test')
         self.states = []
+        self.get_dict = {}
         # Dumb sample frame with two buttons
         i = 0
         self.dict_motions_index = {}
@@ -230,8 +263,11 @@ class MainFrame(wx.Frame):
             pos_x = dict_device[keys][0] * 0.65
             pos_y = dict_device[keys][1] / 2
             wx.Button(self, list_button_motion_lists[i], str(keys), pos=(pos_x, pos_y), size=(50, 20))
-            self.states.append(wx.Button(self, list_button_motion_states[i], 'START'
+            self.states.append(wx.Button(self, list_button_motion_states[i], 'Initial'
                                          , pos=(pos_x + 50, pos_y), size=(50, 20)))
+
+            self.get_dict[list_button_motion_lists[i]] = self.states[i];
+
             self.dict_motions_index[keys] = i
             # wx.Button(self, list_button_motion_states[i], 'START', pos=(100 * (i % 12), 50+int(i / 12) * 100))
             # dict_motions_pairs[list_button_motion_lists[i]] = list_button_motion_states[i]
@@ -245,6 +281,9 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_BUTTON, self.OnStart, id=ID_START)
         self.Bind(wx.EVT_BUTTON, self.OnStop, id=ID_STOP)
         self.Bind(wx.EVT_BUTTON, self.OnState, id=ID_BUTTON)
+
+        for motions in dict_motions_pairs:
+            self.Bind(wx.EVT_BUTTON, self.OnClick, id=motions)
 
         for motions in dict_motions_pairs:
             self.Bind(wx.EVT_BUTTON, self.OnMotion, id=dict_motions_pairs[motions])
@@ -279,7 +318,7 @@ class MainFrame(wx.Frame):
             self.status.SetLabel('Computation aborted')
         else:
             # Process results here
-            self.status.SetLabel('Computation Result: %s' % event.data)
+            self.status.SetLabel('Computation Result: %s And now start! ' % event.data)
         # In either event, the worker is done
         self.worker = None
 
@@ -299,6 +338,30 @@ class MainFrame(wx.Frame):
         # dict_motions_pairs[botton_id]
         self.states[self.dict_motions_index[event.data[0]]].SetLabel(event.data[1])
         self.worker = None
+
+    def OnClick(self, event):
+
+        Test_Button = self.get_dict[event.GetId()]
+        botton_name = dict_device_motion_inverse[event.GetId()]
+        with open('/home/wang/ActivityRecognitionInSmartHome-master/click_data/click_test', 'a+') as fw:
+
+            if Test_Button.GetLabel() == "ON":
+
+                Test_Button.SetLabel("OFF")
+                the_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+                fw.write("%s\t%s\t%s\n " % (botton_name, 'OFF', the_time))
+
+            else:
+
+                Test_Button.SetLabel("ON")
+                the_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+                fw.write("%s\t%s\t%s\n " % (botton_name, 'ON', the_time))
+
+            print (botton_name)
+
+        # Test_Button = self.states[self.dict_motions_index[event.data[0]]]
+
+
 
 
 class MainApp(wx.App):
