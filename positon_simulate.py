@@ -11,6 +11,9 @@ sk = socket.socket()
 sk.connect((host, port))
 '''
 
+date_time_program_start = time.localtime()
+
+
 def get_all_data_dirs(data_dir_root):
 
     list_files_dir = []
@@ -260,6 +263,7 @@ class MainFrame(wx.Frame):
         # button2 = wx.Button(self, id=wx.NewId(), label=u'取消', pos=(180, 150))
         self.DateTimeInput = wx.TextCtrl(self, wx.NewId(), "2007-10-25 15:04:24", (0, 230), (175, -1))
 
+        self.begin_time = self.DateTimeInput.GetValue()
         self.states = []
         self.get_dict = {}
         # Dumb sample frame with two buttons
