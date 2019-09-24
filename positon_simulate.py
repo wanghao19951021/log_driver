@@ -251,9 +251,15 @@ class WorkerThread(Thread):
 # GUI Frame class that spins off the worker thread
 class MainFrame(wx.Frame):
     """Class MainFrame."""
-    def __init__(self, parent, id):
+    def __init__(self, parent):
         """Create the MainFrame."""
-        wx.Frame.__init__(self, parent, id, 'Final Thread Test')
+        wx.Frame.__init__(self, parent, id=-1, title='Final Thread Test', size=(3000,2000))
+
+        panel = wx.Panel(self)
+        # button1 = wx.Button(self, id=wx.NewId(), label=u'确认', pos=(30, 150))
+        # button2 = wx.Button(self, id=wx.NewId(), label=u'取消', pos=(180, 150))
+        self.DateTimeInput = wx.TextCtrl(self, wx.NewId(), "2007-10-25 15:04:24", (0, 230), (175, -1))
+
         self.states = []
         self.get_dict = {}
         # Dumb sample frame with two buttons
@@ -262,7 +268,11 @@ class MainFrame(wx.Frame):
         for keys in dict_device:
             pos_x = dict_device[keys][0] * 0.65
             pos_y = dict_device[keys][1] / 2
-            wx.Button(self, list_button_motion_lists[i], str(keys), pos=(pos_x, pos_y), size=(50, 20))
+            if(keys.startswith('L')):
+                button = wx.Button(self, list_button_motion_lists[i], str(keys), pos=(pos_x, pos_y), size=(50, 20))
+                button.SetBackgroundColour("#FFCC66")  # 设置按钮的背景颜色
+            else:
+                wx.Button(self, list_button_motion_lists[i], str(keys), pos=(pos_x, pos_y), size=(50, 20))
             self.states.append(wx.Button(self, list_button_motion_states[i], 'Initial'
                                          , pos=(pos_x + 50, pos_y), size=(50, 20)))
 
@@ -276,6 +286,8 @@ class MainFrame(wx.Frame):
         wx.Button(self, ID_START, 'Start', pos=(0, 300))
         wx.Button(self, ID_STOP, 'Stop', pos=(0, 400))
         wx.Button(self, ID_BUTTON, 'Initial', pos=(0, 500))
+
+
         self.status = wx.StaticText(self, -1, '', pos=(0, 600))
 
         self.Bind(wx.EVT_BUTTON, self.OnStart, id=ID_START)
@@ -295,6 +307,15 @@ class MainFrame(wx.Frame):
         EVT_STATE(self, self.OnState)
 
         self.worker = None
+
+    def CloseMe(self, evt):
+
+        UserName = self.Username.GetValue()
+        PassWord = self.Password.GetValue()
+        date_time_start = self.DateTimeInput.GetValue()
+        print(date_time_start)
+        if (UserName == 'demo') and (PassWord =='demo'):
+            self.Destroy()
 
     def OnStart(self, event):
 
@@ -360,15 +381,38 @@ class MainFrame(wx.Frame):
             print (botton_name)
 
         # Test_Button = self.states[self.dict_motions_index[event.data[0]]]
+    def OnClick(self, event):
 
+        Test_Button = self.get_dict[event.GetId()]
+        botton_name = dict_device_motion_inverse[event.GetId()]
+        with open('/home/wang/ActivityRecognitionInSmartHome-master/click_data/click_test', 'a+') as fw:
 
+            the_time = time.strftime("%Y-%m-%d %H:%M:%S",
+
+                                     time.localtime(time.mktime(time.localtime()) -
+                                     time.mktime(date_time_program_start)
+                                     + time.mktime(time.strptime(self.begin_time, "%Y-%m-%d %H:%M:%S")) ))
+
+            if Test_Button.GetLabel() == "ON":
+
+                Test_Button.SetLabel("OFF")
+
+                fw.write("%s\t%s\t%s\n " % (botton_name, 'OFF', the_time))
+
+            else:
+
+                Test_Button.SetLabel("ON")
+                # the_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+                fw.write("%s\t%s\t%s\n " % (botton_name, 'ON', the_time))
+
+            print (botton_name)
 
 
 class MainApp(wx.App):
     """Class Main App."""
     def OnInit(self):
         """Init Main App."""
-        self.frame = MainFrame(None, -1)
+        self.frame = MainFrame(None)
         self.frame.Show(True)
         self.SetTopWindow(self.frame)
         return True
