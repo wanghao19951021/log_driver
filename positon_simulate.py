@@ -364,31 +364,12 @@ class MainFrame(wx.Frame):
         self.states[self.dict_motions_index[event.data[0]]].SetLabel(event.data[1])
         self.worker = None
 
+
     def OnClick(self, event):
 
         Test_Button = self.get_dict[event.GetId()]
         botton_name = dict_device_motion_inverse[event.GetId()]
-        with open('/home/wang/ActivityRecognitionInSmartHome-master/click_data/click_test', 'a+') as fw:
-
-            if Test_Button.GetLabel() == "ON":
-
-                Test_Button.SetLabel("OFF")
-                the_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-                fw.write("%s\t%s\t%s\n " % (botton_name, 'OFF', the_time))
-
-            else:
-
-                Test_Button.SetLabel("ON")
-                the_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-                fw.write("%s\t%s\t%s\n " % (botton_name, 'ON', the_time))
-
-            print (botton_name)
-
-        # Test_Button = self.states[self.dict_motions_index[event.data[0]]]
-    def OnClick(self, event):
-
-        Test_Button = self.get_dict[event.GetId()]
-        botton_name = dict_device_motion_inverse[event.GetId()]
+        self.begin_time = self.DateTimeInput.GetValue()
         with open('/home/wang/ActivityRecognitionInSmartHome-master/click_data/click_test', 'a+') as fw:
 
             the_time = time.strftime("%Y-%m-%d %H:%M:%S",
